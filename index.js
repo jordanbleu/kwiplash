@@ -44,107 +44,110 @@ for (const file of commandFiles) {
 
 client.on(Events.InteractionCreate, async interaction => {
 
-    // if somebody is requested a new game 
-    if (interaction.isChatInputCommand()) 
-    { 
-        const command = interaction.client.commands.get(interaction.commandName);
+    try {
 
-        if (!command) {
-            console.error(`No command matching ${interaction.commandName} was found.`);
-            return;
-        }
+        // if somebody is requested a new game 
+        if (interaction.isChatInputCommand()) 
+        { 
+            const command = interaction.client.commands.get(interaction.commandName);
 
-        try {
-            // Currently the only slash command we have starts a new game
-            if (sessionMap.has(interaction.guildId)) {
-                interaction.reply({content: "Looks like there's already an active game of Kwiplash going! :)", ephemeral: true});
+            if (!command) {
+                console.log(`No command matching ${interaction.commandName} was found.`);
                 return;
             }
 
-            var gameData = await command.execute(interaction);
-            sessionMap.set(gameData.guildId, gameData);
+            try {
+                // Currently the only slash command we have starts a new game
+                if (sessionMap.has(interaction.guildId)) {
+                    interaction.reply({content: "Looks like there's already an active game of Kwiplash going! :)", ephemeral: true});
+                    return;
+                }
 
-            await sleep(LOBBY_WAIT_TIME);
-            await displayResponsesAndCollectVotes(gameData);
+                var gameData = await command.execute(interaction);
+                sessionMap.set(gameData.guildId, gameData);
 
-        } catch (error) {
-            console.error(error);
-            await interaction.reply({ content: 'Oh god, something went wrong with the bot :(', ephemeral: true });
-        }
-    } 
-    // if somebody has pressed the 'submit an answer' button, show the modal window
-    else if (interaction.isButton()) 
-    {
-        if (!sessionMap.has(interaction.guildId)) {
-            interaction.reply({content: "It doesn't look like there's a game of Kwiplash running anymore.  You can start one with /kwiplash ;)", ephemeral: true});
-            return;
-        }
+                await sleep(LOBBY_WAIT_TIME);
+                await displayResponsesAndCollectVotes(gameData);
 
-        if (interaction.customId==="btn-trigger-modal")
+            } catch (error) {
+                console.log("Something wrong running the kwiplash command. " + error);
+                await interaction.reply({ content: 'Oh god, something went wrong with the bot :(', ephemeral: true });
+            }
+        } 
+        // if somebody has pressed the 'submit an answer' button, show the modal window
+        else if (interaction.isButton()) 
         {
-            var guildId = interaction.guildId;
-            var gameData = sessionMap.get(guildId);    
-
-            var truncatedLabel = gameData.prompt;
-
-            if (truncatedLabel.length > 30) 
-            {
-                truncatedLabel = truncatedLabel.substring(0,27) + "..."
+            if (!sessionMap.has(interaction.guildId)) {
+                interaction.reply({content: "It doesn't look like there's a game of Kwiplash running anymore.  You can start one with /kwiplash ;)", ephemeral: true});
+                return;
             }
 
-            const modal = new ModalBuilder()
-            .setCustomId('submit-modal')
-            .setTitle("Submit a Kwiplash response!")
-            .addComponents([
-                new ActionRowBuilder().addComponents(
-                    new TextInputBuilder()
-                        .setCustomId('submit-modal-input')
-                        .setLabel(truncatedLabel)
-                        .setStyle(TextInputStyle.Short)
-                        .setMinLength(2)
-                        .setMaxLength(45)
-                        .setPlaceholder("something super hilarious...")
-                        .setRequired(true),
-                ),
-            ]);
-            await interaction.showModal(modal);
-            return;
-        }
+            if (interaction.customId==="btn-trigger-modal")
+            {
+                var guildId = interaction.guildId;
+                var gameData = sessionMap.get(guildId);    
 
-        // User is are voting on a response
-        var responseUsername = interaction.customId.split(":")[1];
+                var truncatedLabel = gameData.prompt;
 
-        var guildId = interaction.guildId;
-        var gameData = sessionMap.get(guildId);    
-        var userName = interaction.user.username;
+                if (truncatedLabel.length > 30) 
+                {
+                    truncatedLabel = truncatedLabel.substring(0,27) + "..."
+                }
 
-        if (userName === responseUsername) {
-            await interaction.reply({content: "You can't vote for your own response, nice try 😡", ephemeral: true});
-            return;
-        }
+                const modal = new ModalBuilder()
+                .setCustomId('submit-modal')
+                .setTitle("Submit a Kwiplash response!")
+                .addComponents([
+                    new ActionRowBuilder().addComponents(
+                        new TextInputBuilder()
+                            .setCustomId('submit-modal-input')
+                            .setLabel(truncatedLabel)
+                            .setStyle(TextInputStyle.Short)
+                            .setMinLength(2)
+                            .setMaxLength(45)
+                            .setPlaceholder("something super hilarious...")
+                            .setRequired(true),
+                    ),
+                ]);
+                await interaction.showModal(modal);
+                return;
+            }
 
-        if (!gameData.votes.has(userName))
-        {
-            await interaction.reply(`${userName} has voted!`);
-        } 
-        else 
-        {
-            await interaction.reply(`${userName} has updated their vote!`);
-        }
-        
-        gameData.votes.set(userName, responseUsername);
-        sessionMap.get(guildId).repliesToDelete.push(interaction);
+            // User is are voting on a response
+            var responseUsername = interaction.customId.split(":")[1];
+
+            var guildId = interaction.guildId;
+            var gameData = sessionMap.get(guildId);    
+            var userName = interaction.user.username;
+
+            if (userName === responseUsername) {
+                await interaction.reply({content: "You can't vote for your own response, nice try 😡", ephemeral: true});
+                return;
+            }
+
+            if (!gameData.votes.has(userName))
+            {
+                await interaction.reply(`${userName} has voted!`);
+            } 
+            else 
+            {
+                await interaction.reply(`${userName} has updated their vote!`);
+            }
+            
+            gameData.votes.set(userName, responseUsername);
+            sessionMap.get(guildId).repliesToDelete.push(interaction);
+            
     }  
     else if (interaction.isModalSubmit())
     {
         var guildId = interaction.guildId;
 
         if (!sessionMap.has(guildId)) {
-            interaction.reply({content: "It doesn't look like there's a game of Kwiplash running.  You can start one with /kwiplash :)", ephemeral: true});
+            await interaction.reply({content: "It doesn't look like there's a game of Kwiplash running.  You can start one with /kwiplash :)", ephemeral: true});
         }
 
         if (sessionMap.get(guildId).responses.length > 7) {
-            interaction.reply({content: "Looks like there's already too many people in this game.  Hopefully you'll get to join the next one.", ephemeral: true});
+            await interaction.reply({content: "Looks like there's already too many people in this game.  Hopefully you'll get to join the next one.", ephemeral: true});
         }
   
         var username = interaction.user.username;
@@ -167,6 +170,16 @@ client.on(Events.InteractionCreate, async interaction => {
 
         sessionMap.get(guildId).repliesToDelete.push(interaction);
     }
+} catch (error) {
+    console.log("Something went very wrong! " + error);
+    // If something breaks, try to clear the current session
+    if (interaction && interaction.guild && interaction.guild.guildId) {
+        if (sessionMap.has(interaction.guild.guildId)) {
+            sessionMap.delete(interaction.guild.guildId);
+        }
+    }
+    await interaction.reply({ content: "Something went wrong trying to do whatever you just tried to do...sorry for my crappy code.  Maybe try again idk.", ephemeral: true});
+}
 });
 
 sleep = async (ms) => await new Promise(r => setTimeout(r,ms));
