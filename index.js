@@ -12,6 +12,9 @@ const { MessageWriter } = require("./util/MessageWriter.js");
 const finalComments = require("./finalComments.json");
 const finalCommentsTie = require("./finalComments_tie.json");
 
+const AsyncLock = require('async-lock')
+var lock = new AsyncLock();
+
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -26,7 +29,7 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 
 // How long to collect responses for
 const LOBBY_WAIT_TIME = 45000;
-const VOTING_WAIT_TIME = 15000;
+const VOTING_WAIT_TIME = 25000;
 
 let sessionMap = new Map();
 
@@ -49,22 +52,28 @@ client.on(Events.InteractionCreate, async interaction => {
         // if somebody is requested a new game 
         if (interaction.isChatInputCommand()) 
         { 
-            const command = interaction.client.commands.get(interaction.commandName);
-
-            if (!command) {
-                console.log(`No command matching ${interaction.commandName} was found.`);
-                return;
-            }
-
+            
             try {
                 // Currently the only slash command we have starts a new game
                 if (sessionMap.has(interaction.guildId)) {
                     interaction.reply({content: "Looks like there's already an active game of Kwiplash going! :)", ephemeral: true});
                     return;
                 }
+                let gameData;
 
-                var gameData = await command.execute(interaction);
-                sessionMap.set(gameData.guildId, gameData);
+                lock.acquire("session-map", async function(done) {
+                    
+                    const command = interaction.client.commands.get(interaction.commandName);
+        
+                    if (!command) {
+                        console.log(`No command matching ${interaction.commandName} was found.`);
+                        return;
+                    }
+
+                    gameData = await command.execute(interaction);
+                    sessionMap.set(gameData.guildId, gameData);
+                    done();
+                });
 
                 await sleep(LOBBY_WAIT_TIME);
                 await displayResponsesAndCollectVotes(gameData);
@@ -177,9 +186,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (sessionMap.has(interaction.guild.guildId)) {
             sessionMap.delete(interaction.guild.guildId);
         }
-    }
-    await interaction.reply({ content: "Something went wrong trying to do whatever you just tried to do...sorry for my crappy code.  Maybe try again idk.", ephemeral: true});
-}
+    }}
 });
 
 sleep = async (ms) => await new Promise(r => setTimeout(r,ms));
@@ -210,7 +217,11 @@ displayResponsesAndCollectVotes = async function(gameDataObject)
 
     var msg = await channel.send(votingMessageContent);
 
-    sessionMap.get(gameDataObject.guildId).votingMessage = msg;
+    var data = sessionMap.get(gameDataObject.guildId);
+
+    if (data) {
+        sessionMap.get(gameDataObject.guildId).votingMessage = msg;
+    }    
 
     await sleep(VOTING_WAIT_TIME);
 
@@ -250,10 +261,14 @@ writeVotingMessage = function(gameDataObject) {
     var actionButtonRow = new ActionRowBuilder()
         .addComponents(Array.from(buttons));
 
-    var votingMessageContent = "Time to vote!  Click the emoji buttons below to vote for the corresponding response!"
+    var votingMessageContent = "\nTime to vote!  Click the emoji buttons below to vote for the corresponding response!"
         .concat(promptsText);
 
-    return { content: votingMessageContent, components: [actionButtonRow] };
+    var lines = new Array();
+    lines.push("` \n" + gameDataObject.prompt + "` \n");
+    lines.push(votingMessageContent);
+    
+    return { content: MessageWriter.writeLines(lines), components: [actionButtonRow] };
 }
 
 displayFinalResults = async function(gameDataObject)
