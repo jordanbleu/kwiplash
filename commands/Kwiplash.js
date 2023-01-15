@@ -46,8 +46,12 @@ module.exports = {
                 new ButtonBuilder()
                     .setCustomId("btn-trigger-modal")
                     .setStyle(ButtonStyle.Primary)
-                    .setLabel("Submit an answer"));
-		
+                    .setLabel("Submit an answer"),
+				new ButtonBuilder()
+					.setStyle(ButtonStyle.Link)
+					.setURL("https://github.com/jordanbleu/kwiplash/blob/main/rules.md")
+					.setLabel("How to play"));
+
         var channel = await interaction.client.channels.fetch(interaction.channelId);
         var msg = await channel.send({ content: MessageWriter.writeLines(messageContent), components: [actionButtonRow] });
 

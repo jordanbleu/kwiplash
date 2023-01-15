@@ -1,7 +1,5 @@
 # How to play Kwiplash
 
-### Players: 2-8
-
 ## Starting the game
 
 To start a game, simply type `/kwiplash` into chat:

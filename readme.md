@@ -2,6 +2,8 @@
 
 ## Written by Jordan Bleu
 
+![logo](./images/kwiplash-small.png)
+
 ### What is this
 
 Kwiplash is a discord / chat based ripoff of Quiplash.  There's a few differences but overall I made it pretty much the same experience, even including snarky remarks :)
