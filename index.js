@@ -1,6 +1,6 @@
 /*
     KWIPLASH by Jordan Bleu
-    
+
     A chat based clone / rip-off of Quiplash for discord.
     See readme.md for details.
 */
@@ -25,7 +25,7 @@ const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 // How long to collect responses for
-const LOBBY_WAIT_TIME = 30000;
+const LOBBY_WAIT_TIME = 45000;
 const VOTING_WAIT_TIME = 15000;
 
 let sessionMap = new Map();
