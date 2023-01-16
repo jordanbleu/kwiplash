@@ -9,15 +9,15 @@ module.exports = {
 		.setDescription('Starts a new game of Kwiplash!'),
 	async execute(interaction) {
 
-		var username = interaction.user.username;
-		await interaction.reply(`${username} wants to play Kwiplash!`);
-
         var guildId = interaction.guildId;
 
 		if (guildId == null || guildId === "") {
 			await interaction.reply("Kwiplash can only be summoned from a discord server.");
 			return;
 		}
+
+		var username = interaction.user.username;
+		await interaction.reply(`${username} wants to play Kwiplash!`);
 
 		// pick an intro
 		var introsCount = intros.length;
