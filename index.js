@@ -31,6 +31,7 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 const LOBBY_WAIT_TIME = 45000;
 const VOTING_WAIT_TIME = 25000;
 
+
 let sessionMap = new Map();
 
 // Populates our list of slash commands based on files in the commands folder 
@@ -49,10 +50,14 @@ client.on(Events.InteractionCreate, async interaction => {
 
     try {
 
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Kwiplash can only be summoned from a discord server.", ephemeral: true });
+            return;
+        }
+
         // if somebody is requested a new game 
         if (interaction.isChatInputCommand()) 
         { 
-            
             try {
                 // Currently the only slash command we have starts a new game
                 if (sessionMap.has(interaction.guildId)) {
@@ -63,16 +68,21 @@ client.on(Events.InteractionCreate, async interaction => {
 
                 lock.acquire("session-map", async function(done) {
                     
-                    const command = interaction.client.commands.get(interaction.commandName);
-        
-                    if (!command) {
-                        console.log(`No command matching ${interaction.commandName} was found.`);
+                    try {
+                        const command = interaction.client.commands.get(interaction.commandName);
+            
+                        if (!command) {
+                            console.log(`No command matching ${interaction.commandName} was found.`);
+                            return;
+                        }
+
+                        gameData = await command.execute(interaction);
+                        sessionMap.set(gameData.guildId, gameData);
+                        done();
+                    } catch (error) {
+                        console.log("There was an error executing the kwiplash command: " + error);
                         return;
                     }
-
-                    gameData = await command.execute(interaction);
-                    sessionMap.set(gameData.guildId, gameData);
-                    done();
                 });
 
                 await sleep(LOBBY_WAIT_TIME);
@@ -81,6 +91,7 @@ client.on(Events.InteractionCreate, async interaction => {
             } catch (error) {
                 console.log("Something wrong running the kwiplash command. " + error);
                 await interaction.reply({ content: 'Oh god, something went wrong with the bot :(', ephemeral: true });
+                return;
             }
         } 
         // if somebody has pressed the 'submit an answer' button, show the modal window
@@ -103,19 +114,27 @@ client.on(Events.InteractionCreate, async interaction => {
                     truncatedLabel = truncatedLabel.substring(0,27) + "..."
                 }
 
+                var textInputBuilder = new TextInputBuilder()
+                    .setCustomId('submit-modal-input')
+                    .setLabel(truncatedLabel)
+                    .setStyle(TextInputStyle.Short)
+                    .setMinLength(2)
+                    .setMaxLength(45)
+                    .setPlaceholder("something super hilarious...")
+                    .setRequired(true);
+
+                // pre-populate the response field with the user's previous answer if they have one
+                if (gameData.responses.has(interaction.user.username)) 
+                {
+                    textInputBuilder.setValue(gameData.responses.get(interaction.user.username).responseText);
+                }
+
                 const modal = new ModalBuilder()
                 .setCustomId('submit-modal')
                 .setTitle("Submit a Kwiplash response!")
                 .addComponents([
                     new ActionRowBuilder().addComponents(
-                        new TextInputBuilder()
-                            .setCustomId('submit-modal-input')
-                            .setLabel(truncatedLabel)
-                            .setStyle(TextInputStyle.Short)
-                            .setMinLength(2)
-                            .setMaxLength(45)
-                            .setPlaceholder("something super hilarious...")
-                            .setRequired(true),
+                        textInputBuilder,
                     ),
                 ]);
                 await interaction.showModal(modal);
@@ -136,11 +155,11 @@ client.on(Events.InteractionCreate, async interaction => {
 
             if (!gameData.votes.has(userName))
             {
-                await interaction.reply(`${userName} has voted!`);
+                await interaction.reply(`***${userName}** has voted!*`);
             } 
             else 
             {
-                await interaction.reply(`${userName} has updated their vote!`);
+                await interaction.reply(`***${userName}** has updated their vote!*`);
             }
             
             gameData.votes.set(userName, responseUsername);
@@ -153,12 +172,22 @@ client.on(Events.InteractionCreate, async interaction => {
 
         if (!sessionMap.has(guildId)) {
             await interaction.reply({content: "It doesn't look like there's a game of Kwiplash running.  You can start one with /kwiplash :)", ephemeral: true});
+            return;
+        }
+
+        var gameData = sessionMap.get(guildId);
+
+        if (!gameData.canSubmit) {
+            await interaction.reply({content: "Sorry, looks like the voting has already started.  You waited too long :(", ephemeral: true});
+            return;
         }
 
         if (sessionMap.get(guildId).responses.length > 7) {
             await interaction.reply({content: "Looks like there's already too many people in this game.  Hopefully you'll get to join the next one.", ephemeral: true});
+            return;
         }
-  
+
+        
         var username = interaction.user.username;
         var response = interaction.fields.getTextInputValue("submit-modal-input");
 
@@ -182,7 +211,7 @@ client.on(Events.InteractionCreate, async interaction => {
 } catch (error) {
     console.log("Something went very wrong! " + error);
     // If something breaks, try to clear the current session
-    if (interaction && interaction.guild && interaction.guild.guildId) {
+    if (interaction.guild.guildId) {
         if (sessionMap.has(interaction.guild.guildId)) {
             sessionMap.delete(interaction.guild.guildId);
         }
@@ -222,6 +251,8 @@ displayResponsesAndCollectVotes = async function(gameDataObject)
     if (data) {
         sessionMap.get(gameDataObject.guildId).votingMessage = msg;
     }    
+
+    sessionMap.get(gameDataObject.guildId).canSubmit = false;
 
     await sleep(VOTING_WAIT_TIME);
 

@@ -11,11 +11,6 @@ module.exports = {
 
         var guildId = interaction.guildId;
 
-		if (guildId == null || guildId === "") {
-			await interaction.reply("Kwiplash can only be summoned from a discord server.");
-			return;
-		}
-
 		var username = interaction.user.username;
 		await interaction.reply(`${username} wants to play Kwiplash!`);
 
@@ -71,7 +66,9 @@ module.exports = {
 			// the prompt
 			prompt: prompt,
 			// Stores interactions that have been replied to that should be deleted when the game ends
-			repliesToDelete: [interaction]
+			repliesToDelete: [interaction],
+			// whether users can still submit responses.  Turns to false after the voting round begins
+			canSubmit: true
         };
 	},
 };
