@@ -437,9 +437,11 @@ getEmojiForId = function(displayId)
 
 endGame = async function(gameDataObject) {
 
-    gameDataObject.repliesToDelete.forEach(interaction=>{
-        interaction.deleteReply().catch(err=>console.log("there was an error deleting a reply, it may have already been deleted."));;
-    });
+    if (gameDataObject.repliesToDelete) {
+        gameDataObject.repliesToDelete.forEach(interaction=> {
+            interaction.deleteReply().catch(err=>console.log("there was an error deleting a reply, it may have already been deleted."));;
+        });
+    }
 
     sessionMap.delete(gameDataObject.guildId);
 }
